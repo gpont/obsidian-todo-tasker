@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
+	"id": "obsidian-todo-tasker",
+	"name": "Todo Tasker",
+	"version": "0.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
+	"description": "Плагин для Obsidian, который помогает управлять задачами и отслеживать их прогресс.",
+	"author": "gpont",
+	"authorUrl": "https://github.com/gpont",
 	"fundingUrl": "https://obsidian.md/pricing",
 	"isDesktopOnly": false
 }
