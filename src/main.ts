@@ -1,12 +1,40 @@
 import { Plugin } from "obsidian";
 import { TaskView, TASK_VIEW_TYPE } from "./views/TaskView";
 import { TaskPluginSettings, DEFAULT_SETTINGS } from "./settings";
-import { TaskSettingTab } from "./settings-tab";
+import { TaskSettingTab } from "./views/SettingsTab";
 import { JiraService } from "./services/jira";
+import { GitLabService } from "./services/gitlab";
 
 export default class TaskPlugin extends Plugin {
 	settings: TaskPluginSettings;
 	jiraService: JiraService | null = null;
+	gitlabService: GitLabService | null = null;
+
+	private initServices() {
+		if (
+			this.settings.jiraBaseUrl &&
+			this.settings.jiraEmail &&
+			this.settings.jiraApiToken
+		) {
+			this.jiraService = new JiraService({
+				baseUrl: this.settings.jiraBaseUrl,
+				email: this.settings.jiraEmail,
+				apiToken: this.settings.jiraApiToken,
+			});
+		}
+
+		if (
+			this.settings.gitlabBaseUrl &&
+			this.settings.gitlabToken &&
+			this.settings.gitlabProjectId
+		) {
+			this.gitlabService = new GitLabService({
+				baseUrl: this.settings.gitlabBaseUrl,
+				token: this.settings.gitlabToken,
+				projectId: this.settings.gitlabProjectId,
+			});
+		}
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -27,18 +55,7 @@ export default class TaskPlugin extends Plugin {
 
 		this.addSettingTab(new TaskSettingTab(this.app, this));
 
-		// Инициализируем JiraService, если настроены все необходимые параметры
-		if (
-			this.settings.jiraBaseUrl &&
-			this.settings.jiraEmail &&
-			this.settings.jiraApiToken
-		) {
-			this.jiraService = new JiraService({
-				baseUrl: this.settings.jiraBaseUrl,
-				email: this.settings.jiraEmail,
-				apiToken: this.settings.jiraApiToken,
-			});
-		}
+		this.initServices();
 	}
 
 	onunload() {
@@ -58,20 +75,7 @@ export default class TaskPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 
-		// Обновляем JiraService при изменении настроек
-		if (
-			this.settings.jiraBaseUrl &&
-			this.settings.jiraEmail &&
-			this.settings.jiraApiToken
-		) {
-			this.jiraService = new JiraService({
-				baseUrl: this.settings.jiraBaseUrl,
-				email: this.settings.jiraEmail,
-				apiToken: this.settings.jiraApiToken,
-			});
-		} else {
-			this.jiraService = null;
-		}
+		this.initServices();
 	}
 
 	async activateView() {

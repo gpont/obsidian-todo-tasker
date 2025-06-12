@@ -7,7 +7,6 @@ import {
 	App,
 } from "obsidian";
 import type MyPlugin from "../main";
-import { JiraService } from "../services/jira";
 
 export const TASK_VIEW_TYPE = "task-view";
 
@@ -24,7 +23,6 @@ function getActiveMarkdownFile(app: App): TFile | null {
 
 export class TaskView extends ItemView {
 	plugin: MyPlugin;
-	private jiraService: JiraService | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
 		super(leaf);
@@ -39,16 +37,29 @@ export class TaskView extends ItemView {
 		return "Tasks";
 	}
 
+	private processJiraTitle(title: string): string {
+		const withoutBrackets = title.replace(/^\[.*?\]\s*/, "");
+		const words = withoutBrackets.split(/\s+/).slice(0, 3);
+		return words.join(" ");
+	}
+
+	private generateBranchName(jiraKey: string, taskName: string): string {
+		const cleanTaskName = taskName
+			.toLowerCase()
+			.replace(/[^a-z0-9\s-]/g, "")
+			.replace(/\s+/g, "-");
+
+		return `branches/${jiraKey}-${cleanTaskName}`;
+	}
+
 	async onOpen() {
 		const container = this.containerEl.children[1];
 		container.empty();
 
-		// Создаем форму для ввода данных задачи
 		const form = container.createEl("form", {
 			cls: "task-form",
 		});
 
-		// Поле для названия задачи
 		const taskNameContainer = form.createDiv({
 			cls: "task-input-container",
 		});
@@ -58,7 +69,6 @@ export class TaskView extends ItemView {
 			placeholder: "Enter task name",
 		});
 
-		// Поле для Jira issue key
 		const jiraKeyContainer = form.createDiv({
 			cls: "task-input-container",
 		});
@@ -67,7 +77,7 @@ export class TaskView extends ItemView {
 		});
 		const jiraKeyInput = jiraKeyContainer.createEl("input", {
 			type: "text",
-			placeholder: "e.g., PROJ-123",
+			placeholder: "e.g., AFS-12345",
 		});
 
 		form.createEl("button", {
@@ -79,23 +89,62 @@ export class TaskView extends ItemView {
 			e.preventDefault();
 
 			const taskName = taskNameInput.value.trim();
-			const jiraKey = jiraKeyInput.value.trim();
+			const jiraKey = jiraKeyInput.value.startsWith("http")
+				? jiraKeyInput.value.split("/").at(-1)?.trim()
+				: jiraKeyInput.value.trim();
 
-			if (!taskName) {
-				new Notice("Please enter a task name");
+			if (!taskName && !jiraKey) {
+				new Notice("Please enter either a task name or Jira issue key");
 				return;
 			}
 
-			let taskTemplate = this.getTaskTemplate(taskName);
+			let finalTaskName = taskName;
+			let finalJiraKey = jiraKey;
+			let taskTemplate = this.getTaskTemplate(finalTaskName);
+			let branchName = "";
 
-			// Если указан Jira issue key, пытаемся получить информацию о задаче
-			if (jiraKey && this.jiraService) {
+			if (jiraKey && this.plugin.jiraService) {
 				try {
-					const issue = await this.jiraService.getIssue(jiraKey);
-					taskTemplate += `\nJira: [${issue.key}](${this.plugin.settings.jiraBaseUrl}/browse/${issue.key}) - ${issue.fields.summary}`;
+					const issue = await this.plugin.jiraService.getIssue(
+						jiraKey
+					);
+					const jiraUrl = `${this.plugin.settings.jiraBaseUrl}/browse/${issue.key}`;
+
+					if (!finalTaskName) {
+						finalTaskName = this.processJiraTitle(
+							issue.fields.summary
+						);
+					}
+
+					finalJiraKey = issue.key;
+
+					branchName = this.generateBranchName(
+						finalJiraKey,
+						finalTaskName
+					);
+
+					let mrLink = "";
+					if (this.plugin.gitlabService) {
+						const mr =
+							await this.plugin.gitlabService.findMergeRequestByBranch(
+								branchName
+							);
+						if (mr) {
+							mrLink = mr.web_url;
+						}
+					}
+
+					taskTemplate = this.getTaskTemplate(finalTaskName)
+						.replace("{{jiraUrl}}", jiraUrl)
+						.replace("{{jiraKey}}", finalJiraKey)
+						.replace("{{branchName}}", branchName.toLowerCase())
+						.replace("{{mrLink}}", mrLink);
 				} catch (error) {
 					new Notice(`Failed to fetch Jira issue: ${error.message}`);
+					return;
 				}
+			} else {
+				taskTemplate = this.getTaskTemplate(finalTaskName);
 			}
 
 			const file: TFile | null = getActiveMarkdownFile(this.app);
@@ -112,7 +161,6 @@ export class TaskView extends ItemView {
 			await this.app.vault.modify(file, content);
 			new Notice("New task added");
 
-			// Очищаем форму
 			taskNameInput.value = "";
 			jiraKeyInput.value = "";
 		};

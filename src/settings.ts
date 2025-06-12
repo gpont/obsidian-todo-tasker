@@ -3,15 +3,18 @@ export interface TaskPluginSettings {
 	jiraBaseUrl: string;
 	jiraEmail: string;
 	jiraApiToken: string;
+	gitlabBaseUrl: string;
+	gitlabToken: string;
+	gitlabProjectId: string;
 }
 
 export const DEFAULT_SETTINGS: TaskPluginSettings = {
-	taskTemplate: `- [ ] {{taskName}}
-    - [ ] Ветка branches/afs-
+	taskTemplate: `- [ ] {{taskName}} [{{jiraKey}}]({{jiraUrl}})
+    - [ ] Ветка {{branchName}}
     - [ ] Распланировать
     - [ ] Сделать
         - [ ] 
-    - [ ] МР
+    - [ ] [МР]({{mrLink}})
         - [ ] Описание
         - [ ] CTE
         - [ ] Протестить на CTE
@@ -23,4 +26,7 @@ export const DEFAULT_SETTINGS: TaskPluginSettings = {
 	jiraBaseUrl: "",
 	jiraEmail: "",
 	jiraApiToken: "",
+	gitlabBaseUrl: "",
+	gitlabToken: "",
+	gitlabProjectId: "",
 };
